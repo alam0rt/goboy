@@ -16,6 +16,15 @@ type Registers struct {
 	l uint8
 }
 
+// Instructions
+// Add:
+func (r *Registers) add(a *uint8, b *uint8) {
+	x := *a
+	y := *b
+	v := x + y
+	fmt.Println(v)
+}
+
 // the below constants define the bit position
 // of the flags in the flag register
 const ZERO_FLAG_BYTE_POSITION uint8 = 7
@@ -141,5 +150,7 @@ func main() {
 	flag.convUInttoFlag(112)
 	fmt.Println(flag)
 	fmt.Println(f) // should be 240 - aka 0b11110000
+	var g uint8 = 9
+	wow.add(&g, &wow.b)
 
 }
