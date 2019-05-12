@@ -4,6 +4,20 @@ import (
 	"fmt"
 )
 
+var cpu CPU // declare the cpu
+
+type CPU struct {
+	registers Registers
+	bus       memoryBus
+	sp        uint16 // stack pointer
+	pc        uint16 // program counter
+
+}
+
+type memoryBus struct {
+	memory [0xFFFF]uint8 // 16bit memory range
+}
+
 // Registers is a struct which defines the CPU registers
 type Registers struct {
 	a uint8
@@ -11,18 +25,63 @@ type Registers struct {
 	c uint8
 	d uint8
 	e uint8
-	f uint8 // flags register
 	h uint8
 	l uint8
+	f flagsRegister // flags register
 }
 
-// Instructions
-// Add:
+// Instruction set
+
+// add does just that. Overflow is handled by
+// checking if either operand is greater than
+// the result, if it is, we set the carry flag
+
 func (r *Registers) add(a *uint8, b *uint8) {
-	x := *a
-	y := *b
-	v := x + y
-	fmt.Println(v)
+	if *a|*b > (*a + *b) {
+		r.f.carry = true
+	}
+	// if result is 0, set zero flag
+	if *a+*b == 0 {
+		r.f.zero = true
+	}
+	// if the lower nibble of both operands
+	// when added do not overflow into the
+	// higher nibble, set flag
+	r.f.halfCarry = (*a&0xF)+(*b&0xF) > 0xF
+
+	*a = *a + *b
+}
+
+func (c *CPU) printRegisters() {
+	fmt.Printf(`
+a: %d
+b: %d
+c: %d
+d: %d
+e: %d
+h: %d
+l: %d
+sp: %d
+pc: %d
+zero_flag: %t
+subtract: %t
+half_carry: %t
+carry: %t
+`,
+		c.registers.a,
+		c.registers.b,
+		c.registers.c,
+		c.registers.d,
+		c.registers.e,
+		c.registers.h,
+		c.registers.l,
+		c.sp,
+		c.pc,
+		c.registers.f.zero,
+		c.registers.f.subtract,
+		c.registers.f.halfCarry,
+		c.registers.f.carry,
+	)
 }
 
 // the below constants define the bit position
@@ -56,7 +115,7 @@ func (f *flagsRegister) convUInttoFlag(i uint8) {
 // 0100 0000 = subtract flag
 // 0010 0000 = half carry
 // 0001 0000 = carry flag
-func convFlagToUInt8(r flagsRegister) uint8 {
+func (r *flagsRegister) convFlagToUInt8() uint8 {
 	var f uint8
 	if r.zero {
 		f = f | 1<<ZERO_FLAG_BYTE_POSITION
@@ -81,7 +140,7 @@ func convFlagToUInt8(r flagsRegister) uint8 {
 // returns a combined "virtual" register
 // of type uint16
 func (r *Registers) getAF() uint16 {
-	af := uint16(r.a)<<8 | uint16(r.f)
+	af := uint16(r.a)<<8 | uint16(r.f.convFlagToUInt8())
 	return af
 
 }
@@ -90,7 +149,7 @@ func (r *Registers) getAF() uint16 {
 // input uint16 value into x 2 uint8 values
 func (r *Registers) setAF(value uint16) {
 	r.a = uint8((value & 0xFF00) >> 8)
-	r.f = uint8(value & 0xFF)
+	r.f.convUInttoFlag(uint8(value & 0xFF))
 }
 
 // getDE reads the d, e registers and
@@ -134,6 +193,16 @@ func (r *Registers) getHL() uint16 {
 
 }
 
+// setSP takes a uint16 and sets it in the register
+func (c *CPU) setSP(value uint16) {
+	c.sp = value
+}
+
+// setPC takes a uint16 and sets it in the register
+func (c *CPU) setPC(value uint16) {
+	c.pc = value
+}
+
 // setHL takes a the register struct and turns the
 // input uint16 value into x 2 uint8 values
 func (r *Registers) setHL(value uint16) {
@@ -142,15 +211,14 @@ func (r *Registers) setHL(value uint16) {
 }
 
 func main() {
-	wow := Registers{1, 9, 9, 4, 5, 6, 7, 8}
-	wow.setBC(2314)
+	cpu.registers.a = 255
+	cpu.registers.c = 255
+	cpu.registers.l = 255
+	a := &cpu.registers.a
+	l := &cpu.registers.l
+	cpu.registers.f.convUInttoFlag(0)
+	cpu.registers.add(l, a)
 
-	flag := flagsRegister{false, true, true, true}
-	f := convFlagToUInt8(flag)
-	flag.convUInttoFlag(112)
-	fmt.Println(flag)
-	fmt.Println(f) // should be 240 - aka 0b11110000
-	var g uint8 = 9
-	wow.add(&g, &wow.b)
+	cpu.printRegisters()
 
 }
